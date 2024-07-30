@@ -1,0 +1,91 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+
+class BlockAnalyzer:
+    def __init__(self, blockchain: str):
+        self.api_url = f'https://api.blockchair.com/{blockchain}'
+        self.blockchain = blockchain
+
+    def get_block_data(self, block_id: str) -> dict:
+        """Fetches data for a specific block by its ID."""
+        url = f"{self.api_url}/blocks/{block_id}"
+        response = requests.get(url)
+        return response.json().get('data', {})
+
+    def get_blocks_range(self, start_block: int, end_block: int) -> pd.DataFrame:
+        """Fetches data for a range of blocks."""
+        blocks = []
+        for block_id in range(start_block, end_block + 1):
+            data = self.get_block_data(block_id)
+            if data:
+                blocks.append(data)
+        return pd.DataFrame(blocks)
+
+    def analyze_block_times(self, start_block: int, end_block: int) -> pd.DataFrame:
+        """Analyzes block times for a range of blocks."""
+        df = self.get_blocks_range(start_block, end_block)
+        if df.empty:
+            print("No block data found.")
+            return pd.DataFrame()
+
+        df['timestamp'] = pd.to_datetime(df['time'], unit='s')
+        df.set_index('timestamp', inplace=True)
+        df['block_time'] = df.index.to_series().diff().dt.total_seconds()
+
+        return df[['block_time']].dropna()
+
+    def analyze_transaction_volumes(self, start_block: int, end_block: int) -> pd.DataFrame:
+        """Analyzes transaction volumes for a range of blocks."""
+        df = self.get_blocks_range(start_block, end_block)
+        if df.empty:
+            print("No block data found.")
+            return pd.DataFrame()
+
+        df['timestamp'] = pd.to_datetime(df['time'], unit='s')
+        df.set_index('timestamp', inplace=True)
+        df['transaction_count'] = df['transactions_count']
+
+        return df[['transaction_count']]
+
+    def plot_block_times(self, start_block: int, end_block: int):
+        """Plots block times for a range of blocks."""
+        df = self.analyze_block_times(start_block, end_block)
+        if df.empty:
+            return
+
+        plt.figure(figsize=(12, 6))
+        df['block_time'].plot()
+        plt.title(f'{self.blockchain.capitalize()} Block Time Analysis')
+        plt.xlabel('Date')
+        plt.ylabel('Block Time (seconds)')
+        plt.grid(True)
+        plt.show()
+
+    def plot_transaction_volumes(self, start_block: int, end_block: int):
+        """Plots transaction volumes for a range of blocks."""
+        df = self.analyze_transaction_volumes(start_block, end_block)
+        if df.empty:
+            return
+
+        plt.figure(figsize=(12, 6))
+        df['transaction_count'].plot()
+        plt.title(f'{self.blockchain.capitalize()} Transaction Volume Analysis')
+        plt.xlabel('Date')
+        plt.ylabel('Transaction Count')
+        plt.grid(True)
+        plt.show()
+
+# Example Usage
+if __name__ == "__main__":
+    blockchain = 'bitcoin'  # Replace with the blockchain of interest, e.g., 'ethereum'
+    block_analyzer = BlockAnalyzer(blockchain)
+
+    # Analyze and Plot Block Times
+    start_block = 700000  # Example start block ID
+    end_block = 700010    # Example end block ID
+    block_analyzer.plot_block_times(start_block, end_block)
+
+    # Analyze and Plot Transaction Volumes
+    block_analyzer.plot_transaction_volumes(start_block, end_block)
